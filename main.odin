@@ -13,8 +13,11 @@ import rl "vendor:raylib"
 SERVER_ADDRESS :: "localhost:6688"
 CLIENT_SIZE :: 30
 
+me_mutex: sync.Mutex
+me: Client
+
 clients_mutex: sync.Mutex
-clients := [dynamic]Client{}
+clients: []Client
 
 main :: proc() {
 	context.logger = log.create_console_logger(.Debug)
@@ -30,11 +33,32 @@ main :: proc() {
 	defer rl.UnloadFont(font)
 
 	for !rl.WindowShouldClose() {
+		sync.lock(&me_mutex)
+		defer sync.unlock(&me_mutex)
+
+		if rl.IsKeyDown(rl.KeyboardKey.RIGHT) {
+			me.x += 2.0
+		}
+
+		if rl.IsKeyDown(rl.KeyboardKey.LEFT) {
+			me.x -= 2.0
+		}
+
+		if rl.IsKeyDown(rl.KeyboardKey.UP) {
+			me.y -= 2.0
+		}
+
+		if rl.IsKeyDown(rl.KeyboardKey.DOWN) {
+			me.y += 2.0
+		}
+
 		{
 			rl.BeginDrawing()
 			defer rl.EndDrawing()
 
 			rl.ClearBackground(rl.RAYWHITE)
+
+			rl.DrawRectangle(me.x, me.y, CLIENT_SIZE, CLIENT_SIZE, me.color)
 
 			{
 				sync.lock(&clients_mutex)
@@ -44,7 +68,7 @@ main :: proc() {
 				}
 			}
 
-			rl.DrawFPS(10, 10)
+			// rl.DrawFPS(10, 10)
 		}
 	}
 }

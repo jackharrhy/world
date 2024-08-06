@@ -1,7 +1,10 @@
-set shell := ["powershell", "-c"]
+set windows-powershell
 
 run:
   odin run .
 
-build:
+build-linux:
+  odin build .
+
+build-windows:
   odin build . -subsystem:windows

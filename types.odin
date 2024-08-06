@@ -12,7 +12,7 @@ Client :: struct {
 
 ClientsMessage :: struct {
 	type:    string,
-	clients: [dynamic]Client,
+	clients: []Client,
 }
 
 ServerMessage :: union {

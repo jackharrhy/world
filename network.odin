@@ -8,6 +8,17 @@ import "core:os"
 import "core:sync"
 import "core:thread"
 
+MessageError :: enum {
+	None,
+	UnknownType,
+}
+
+NetworkError :: union #shared_nil {
+	net.Network_Error,
+	json.Error,
+	MessageError,
+}
+
 setup_socket :: proc() -> (socket: net.TCP_Socket, err: net.Network_Error) {
 	socket, err = net.dial_tcp_from_hostname_and_port_string(SERVER_ADDRESS)
 
@@ -53,48 +64,7 @@ get_bytes_from_socket :: proc(
 	return
 }
 
-parse_message :: proc(bytes: [dynamic]byte) -> (message: string, err: json.Error) {
-	json_data, json_err := json.parse(bytes[:])
-
-	if json_err != nil {
-		log.errorf("Failed to parse JSON: %s\n", err)
-		return "", json_err
-	}
-
-	root := json_data.(json.Object)
-
-	type := root["type"]
-
-	return
-}
-
-MessageError :: enum {
-	None,
-	UnknownType,
-}
-
-recieve_message :: proc(
-	socket: net.TCP_Socket,
-) -> (
-	message: ServerMessage,
-	done: bool,
-	err: union #shared_nil {
-		net.Network_Error,
-		json.Error,
-		MessageError,
-	},
-) {
-	bytes: [dynamic]byte
-	defer delete(bytes)
-
-	socket_err: net.Network_Error
-	bytes, done, err = get_bytes_from_socket(socket)
-
-	if done || err != nil {
-		log.errorf("Failed to get bytes from socket: %s\n", socket_err)
-		return
-	}
-
+parse_message :: proc(bytes: [dynamic]byte) -> (message: ServerMessage, err: NetworkError) {
 	json_data: json.Value
 	json_data, err = json.parse(bytes[:])
 
@@ -111,12 +81,33 @@ recieve_message :: proc(
 	case "clients":
 		message: ClientsMessage
 		json.unmarshal(bytes[:], &message)
-		return message, false, nil
+		return message, nil
 	case:
 		log.errorf("Unknown message type: %s\n", type)
 		err = MessageError.UnknownType
 		return
 	}
+}
+
+recieve_message :: proc(
+	socket: net.TCP_Socket,
+) -> (
+	message: ServerMessage,
+	done: bool,
+	err: NetworkError,
+) {
+	bytes: [dynamic]byte
+	defer delete(bytes)
+
+	socket_err: net.Network_Error
+	bytes, done, err = get_bytes_from_socket(socket)
+
+	if done || err != nil {
+		log.errorf("Failed to get bytes from socket: %s\n", socket_err)
+		return
+	}
+
+	message, err = parse_message(bytes)
 
 	return
 }
