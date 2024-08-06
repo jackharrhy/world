@@ -2,6 +2,11 @@ package world
 
 import rl "vendor:raylib"
 
+GameScreen :: enum {
+	Loading,
+	Game,
+}
+
 Client :: struct {
 	id:    string,
 	name:  cstring,

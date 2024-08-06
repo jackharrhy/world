@@ -1,7 +1,6 @@
 package world
 
 import "core:encoding/json"
-import "core:fmt"
 import "core:log"
 import "core:net"
 import "core:os"
