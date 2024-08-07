@@ -29,23 +29,25 @@ handle_loading_screen :: proc() {
 }
 
 handle_game_screen :: proc() {
-	sync.lock(&me_mutex)
-	defer sync.unlock(&me_mutex)
+	{
+		sync.lock(&me_mutex)
+		defer sync.unlock(&me_mutex)
 
-	if rl.IsKeyDown(rl.KeyboardKey.RIGHT) {
-		me.x += 2.0
-	}
+		if rl.IsKeyDown(rl.KeyboardKey.RIGHT) {
+			me.x += 2.0
+		}
 
-	if rl.IsKeyDown(rl.KeyboardKey.LEFT) {
-		me.x -= 2.0
-	}
+		if rl.IsKeyDown(rl.KeyboardKey.LEFT) {
+			me.x -= 2.0
+		}
 
-	if rl.IsKeyDown(rl.KeyboardKey.UP) {
-		me.y -= 2.0
-	}
+		if rl.IsKeyDown(rl.KeyboardKey.UP) {
+			me.y -= 2.0
+		}
 
-	if rl.IsKeyDown(rl.KeyboardKey.DOWN) {
-		me.y += 2.0
+		if rl.IsKeyDown(rl.KeyboardKey.DOWN) {
+			me.y += 2.0
+		}
 	}
 
 	{
@@ -64,6 +66,6 @@ handle_game_screen :: proc() {
 			}
 		}
 
-		// rl.DrawFPS(10, 10)
+		rl.DrawFPS(10, 10)
 	}
 }

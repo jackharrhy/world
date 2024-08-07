@@ -5,7 +5,9 @@ import "core:log"
 import "core:net"
 import "core:os"
 import "core:sync"
+import "core:sync/chan"
 import "core:thread"
+import "core:time"
 
 MessageError :: enum {
 	None,
@@ -81,6 +83,10 @@ parse_message :: proc(bytes: [dynamic]byte) -> (message: ServerMessage, err: Net
 		message: ClientsMessage
 		json.unmarshal(bytes[:], &message)
 		return message, nil
+	case "init":
+		message: InitMessage
+		json.unmarshal(bytes[:], &message)
+		return message, nil
 	case:
 		log.errorf("Unknown message type: %s\n", type)
 		err = MessageError.UnknownType
@@ -111,20 +117,32 @@ recieve_message :: proc(
 	return
 }
 
-setup_listener :: proc() {
-	client_recive_loop: thread.Thread_Proc : proc(t: ^thread.Thread) {
+update_clients :: proc(new_clients: []Client) {
+	sync.lock(&clients_mutex)
+	defer sync.unlock(&clients_mutex)
+	delete(clients)
+	clients = new_clients
+}
+
+update_me :: proc(new_me: Client) {
+	sync.lock(&me_mutex)
+	defer sync.unlock(&me_mutex)
+	me = new_me
+}
+
+update_game_screen :: proc(new_screen: GameScreen) {
+	sync.lock(&game_screen_mutex)
+	defer sync.unlock(&game_screen_mutex)
+	game_screen = new_screen
+}
+
+setup_listener :: proc(socket: ^net.TCP_Socket) {
+	thread.create_and_start_with_data(rawptr(socket), proc(socket: rawptr) {
 		context.logger = log.create_console_logger(.Debug)
 
-		log.info("Client recive loop started")
-		socket, failed := setup_socket()
+		socket := (cast(^net.TCP_Socket)socket)^
 
-		if failed != nil {
-			// TODO handle without exiting everything
-			// maybe way to send a message to the main thread, which
-			// will affect rendering, and then retry with some level
-			// of backoff?
-			os.exit(1)
-		}
+		log.debug("Client recive loop started")
 
 		for {
 			message, done, err := recieve_message(socket)
@@ -133,24 +151,56 @@ setup_listener :: proc() {
 				break
 			}
 
-			log.info("Recived message: %s", message)
+			log.debug("Recived message: %s", message)
 
 			switch m in message {
 			case ClientsMessage:
-				{
-					sync.lock(&clients_mutex)
-					defer sync.unlock(&clients_mutex)
-					delete(clients)
-					clients = m.clients
-				}
+				update_clients(m.clients)
+			case InitMessage:
+				update_clients(m.clients)
+				update_me(m.me)
+				update_game_screen(GameScreen.Game)
 			}
 		}
 
-		log.warn("Client recive loop ended")
+		log.debug("Client recive loop ended")
+	})
+}
+
+setup_sender :: proc(socket: ^net.TCP_Socket) {
+	thread.create_and_start_with_data(rawptr(socket), proc(socket: rawptr) {
+		context.logger = log.create_console_logger(.Debug)
+
+		socket := (cast(^net.TCP_Socket)socket)^
+
+		log.debug("Client send loop started")
+
+		for {
+			client_message, ok := chan.recv(client_messages)
+
+			if !ok {
+				time.sleep(MESSAGE_SEND_SLEEP_DURATION)
+				continue
+			}
+
+			log.debug("Sending message: %s", client_message)
+		}
+
+		log.debug("Client send loop ended")
+	})
+}
+
+setup_network :: proc() {
+	socket, failed := setup_socket()
+
+	if failed != nil {
+		// TODO handle without exiting everything
+		// maybe way to send a message to the main thread, which
+		// will affect rendering, and then retry with some level
+		// of backoff?
+		os.exit(1)
 	}
 
-	log.info("Starting client recive loop")
-
-	recieve_thread := thread.create(client_recive_loop)
-	thread.start(recieve_thread)
+	setup_listener(&socket)
+	setup_sender(&socket)
 }

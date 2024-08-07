@@ -16,10 +16,23 @@ Client :: struct {
 }
 
 ClientsMessage :: struct {
-	type:    string,
 	clients: []Client,
+}
+
+InitMessage :: struct {
+	clients: []Client,
+	me:      Client,
 }
 
 ServerMessage :: union {
 	ClientsMessage,
+	InitMessage,
+}
+
+MeMessage :: struct {
+	me: Client,
+}
+
+ClientMessage :: union {
+	MeMessage,
 }
