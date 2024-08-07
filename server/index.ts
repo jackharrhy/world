@@ -1,4 +1,9 @@
 import type { Socket } from "bun";
+import debugFactory from "debug";
+
+debugFactory.enable("world:*");
+
+const debug = debugFactory("world:index");
 
 const spaceSize = 512;
 
@@ -10,25 +15,30 @@ crypto.randomUUID();
 type SocketData = { id: string };
 
 type Client = {
-  id: string,
-  color: [number, number, number, number],
-  socket: Socket<SocketData>,
+  id: string;
+  color: [number, number, number, number];
+  socket: Socket<SocketData>;
   x: number;
   y: number;
-}
+};
 
 type ClientsMessage = {
-  type: "clients",
+  type: "clients";
   clients: Omit<Client, "socket">[];
-}
+};
 
 type InitMessage = {
-  type: "init",
-  me: Omit<Client, "socket">,
+  type: "init";
+  me: Omit<Client, "socket">;
   clients: Omit<Client, "socket">[];
-}
+};
 
 const clients: Record<string, Client> = {};
+
+const sendToSocket = (socket: Socket<SocketData>, message: object) => {
+  debug(`sending to ${socket.data.id}: ${JSON.stringify(message)}`);
+  socket.write(`${JSON.stringify(message)}\n`);
+};
 
 const createClientsMessage = (ignoreClient: Client): ClientsMessage => ({
   type: "clients",
@@ -39,17 +49,21 @@ const createClientsMessage = (ignoreClient: Client): ClientsMessage => ({
 
 const sendClients = (socket: Socket<SocketData>, me: Client) => {
   const clientMessage = createClientsMessage(me);
-  socket.write(`${JSON.stringify(clientMessage)}\n`);
-}
+  sendToSocket(socket, clientMessage);
+};
 
 const sendInit = (socket: Socket<SocketData>, me: Client) => {
   const initMessage: InitMessage = {
     type: "init",
     me: { id: me.id, color: me.color, x: me.x, y: me.y },
-    clients: Object.values(clients).map(({ id, color, x, y }) => ({ id, color, x, y })),
+    clients: Object.values(clients).map(({ id, color, x, y }) => ({
+      id,
+      color,
+      x,
+      y,
+    })),
   };
-
-  socket.write(`${JSON.stringify(initMessage)}\n`);
+  sendToSocket(socket, initMessage);
 };
 
 setInterval(() => {
@@ -63,8 +77,7 @@ Bun.listen<SocketData>({
   port,
   socket: {
     data(socket, data) {
-      console.log(`socket data: ${socket.data.id} - ${data}`);
-      socket.write(`you said: ${data}`);
+      debug(`socket data: ${socket.data.id} - ${data}`);
     },
     open(socket) {
       const id = crypto.randomUUID();
@@ -74,21 +87,21 @@ Bun.listen<SocketData>({
         color: [255, 0, 0, 255],
         socket,
         x: Math.floor(Math.random() * spaceSize),
-        y: Math.floor(Math.random() * spaceSize)
+        y: Math.floor(Math.random() * spaceSize),
       } satisfies Client;
       clients[id] = client;
 
-      console.log(`socket opened: ${id}`);
+      debug(`socket opened: ${id}`);
       sendInit(socket, client);
     },
     close(socket) {
       delete clients[socket.data.id];
-      console.log(`socket closed: ${socket.data.id}`);
+      debug(`socket closed: ${socket.data.id}`);
     },
     error(socket, error) {
-      console.error(`socket error: ${socket.data.id} - ${error}`);
+      debug(`socket error: ${socket.data.id} - ${error}`);
     },
   },
 });
 
-console.log(`server running on ${hostname}:${port} via tcp`);
+console.info(`server running on ${hostname}:${port} via tcp`);

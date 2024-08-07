@@ -1,0 +1,6 @@
+session_name: world
+windows:
+  - layout: tiled
+    panes:
+      - cd server && bun run dev
+      - just run
