@@ -42,14 +42,15 @@ get_bytes_from_socket :: proc(
 		buffer: [16]byte
 		n, err := net.recv_tcp(socket, buffer[:])
 
-		if n == 0 {
-			done = true
-			return
-		}
 		if err == net.TCP_Recv_Error.Timeout {
 			continue
 		} else if err != nil {
 			log.errorf("Failed to get bytes from socket: %s\n", err)
+			done = true
+			return
+		}
+
+		if n == 0 {
 			done = true
 			return
 		}
@@ -136,11 +137,16 @@ update_game_screen :: proc(new_screen: GameScreen) {
 	game_screen = new_screen
 }
 
-setup_listener :: proc(socket: ^net.TCP_Socket) {
-	thread.create_and_start_with_data(rawptr(socket), proc(socket: rawptr) {
-		context.logger = log.create_console_logger(.Debug)
+setup_listener :: proc() {
+	socket, failed := setup_socket()
 
-		socket := (cast(^net.TCP_Socket)socket)^
+	if failed != nil {
+		// TODO maybe just return error to main so main can fail exit?
+		os.exit(1)
+	}
+
+	thread.create_and_start_with_poly_data(socket, proc(socket: net.TCP_Socket) {
+		context.logger = log.create_console_logger(.Debug)
 
 		log.debug("Client recive loop started")
 
@@ -167,11 +173,12 @@ setup_listener :: proc(socket: ^net.TCP_Socket) {
 	})
 }
 
-setup_sender :: proc(socket: ^net.TCP_Socket) {
-	thread.create_and_start_with_data(rawptr(socket), proc(socket: rawptr) {
+/*
+setup_sender :: proc(socket_ptr: ^net.TCP_Socket) {
+	thread.create_and_start_with_poly_data(socket_ptr, proc(socket_ptr: ^net.TCP_Socket) {
 		context.logger = log.create_console_logger(.Debug)
 
-		socket := (cast(^net.TCP_Socket)socket)^
+		socket := socket_ptr^
 
 		log.debug("Client send loop started")
 
@@ -189,18 +196,8 @@ setup_sender :: proc(socket: ^net.TCP_Socket) {
 		log.debug("Client send loop ended")
 	})
 }
+*/
 
 setup_network :: proc() {
-	socket, failed := setup_socket()
-
-	if failed != nil {
-		// TODO handle without exiting everything
-		// maybe way to send a message to the main thread, which
-		// will affect rendering, and then retry with some level
-		// of backoff?
-		os.exit(1)
-	}
-
-	setup_listener(&socket)
-	setup_sender(&socket)
+	setup_listener()
 }
