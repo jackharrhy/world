@@ -30,7 +30,8 @@ ServerMessage :: union {
 }
 
 MeMessage :: struct {
-	me: Client,
+	type: string, // "me"
+	me:   Client,
 }
 
 ClientMessage :: union {

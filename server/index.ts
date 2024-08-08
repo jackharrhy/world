@@ -5,6 +5,8 @@ debugFactory.enable("world:*");
 
 const debug = debugFactory("world:index");
 
+const updateRate = 1000 / 40;
+
 const spaceSize = 512;
 
 const hostname = "127.0.0.1";
@@ -32,6 +34,15 @@ type InitMessage = {
   me: Omit<Client, "socket">;
   clients: Omit<Client, "socket">[];
 };
+
+type ServerMessage = ClientsMessage | InitMessage;
+
+type MeMessage = {
+  type: "me";
+  me: Omit<Client, "socket">;
+};
+
+type ClientMessage = MeMessage;
 
 const clients: Record<string, Client> = {};
 
@@ -70,14 +81,27 @@ setInterval(() => {
   Object.values(clients).forEach(({ socket }) => {
     sendClients(socket, clients[socket.data.id]);
   });
-}, 500);
+}, updateRate);
 
 Bun.listen<SocketData>({
   hostname,
   port,
   socket: {
     data(socket, data) {
-      debug(`socket data: ${socket.data.id} - ${data}`);
+      debug(`socket data: ${data}`);
+      const message = JSON.parse(data.toString()) as ClientMessage;
+
+      switch (message.type) {
+        case "me": {
+          const client = clients[socket.data.id];
+          client.x = message.me.x;
+          client.y = message.me.y;
+          break;
+        }
+        default:
+          console.error(`unknown message type: ${message.type}`);
+          break;
+      }
     },
     open(socket) {
       const id = crypto.randomUUID();

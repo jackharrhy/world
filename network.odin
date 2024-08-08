@@ -137,67 +137,83 @@ update_game_screen :: proc(new_screen: GameScreen) {
 	game_screen = new_screen
 }
 
-setup_listener :: proc() {
+listener :: proc(socket: net.TCP_Socket) {
+	log.debug("Client recive loop started")
+
+	for {
+		message, done, err := recieve_message(socket)
+
+		if done || err != nil {
+			break
+		}
+
+		log.debug("Recived message: %s", message)
+
+		switch m in message {
+		case ClientsMessage:
+			update_clients(m.clients)
+		case InitMessage:
+			update_clients(m.clients)
+			update_me(m.me)
+			update_game_screen(GameScreen.Game)
+		}
+	}
+
+	log.debug("Client recive loop ended")
+}
+
+sender :: proc(socket: net.TCP_Socket) {
+	log.debug("Client send loop started")
+
+	for {
+		// TODO impl https://jakubtomsu.github.io/posts/input_in_fixed_timestep/
+		time.sleep(UPDATE_INTERVAL)
+
+		message: MeMessage
+		message.type = "me"
+
+		{
+			sync.lock(&me_mutex)
+			defer sync.unlock(&me_mutex)
+
+			message.me = me
+		}
+
+		bytes, json_err := json.marshal(message)
+
+		if json_err != nil {
+			log.errorf("Failed to marshal message: %s\n", json_err)
+			break
+		}
+
+		_, net_err := net.send_tcp(socket, bytes)
+
+		if net_err != nil {
+			log.errorf("Failed to send message: %s\n", net_err)
+			break
+		}
+	}
+
+	log.debug("Client send loop ended")
+}
+
+setup_network :: proc() -> (err: net.Network_Error) {
 	socket, failed := setup_socket()
 
 	if failed != nil {
-		// TODO maybe just return error to main so main can fail exit?
-		os.exit(1)
+		err = failed
+		return
 	}
 
 	thread.create_and_start_with_poly_data(socket, proc(socket: net.TCP_Socket) {
 		context.logger = log.create_console_logger(.Debug)
-
-		log.debug("Client recive loop started")
-
-		for {
-			message, done, err := recieve_message(socket)
-
-			if done || err != nil {
-				break
-			}
-
-			log.debug("Recived message: %s", message)
-
-			switch m in message {
-			case ClientsMessage:
-				update_clients(m.clients)
-			case InitMessage:
-				update_clients(m.clients)
-				update_me(m.me)
-				update_game_screen(GameScreen.Game)
-			}
-		}
-
-		log.debug("Client recive loop ended")
+		listener(socket)
 	})
-}
 
-/*
-setup_sender :: proc(socket_ptr: ^net.TCP_Socket) {
-	thread.create_and_start_with_poly_data(socket_ptr, proc(socket_ptr: ^net.TCP_Socket) {
+	thread.create_and_start_with_poly_data(socket, proc(socket: net.TCP_Socket) {
 		context.logger = log.create_console_logger(.Debug)
-
-		socket := socket_ptr^
-
-		log.debug("Client send loop started")
-
-		for {
-			client_message, ok := chan.recv(client_messages)
-
-			if !ok {
-				time.sleep(MESSAGE_SEND_SLEEP_DURATION)
-				continue
-			}
-
-			log.debug("Sending message: %s", client_message)
-		}
-
-		log.debug("Client send loop ended")
+		sender(socket)
 	})
-}
-*/
 
-setup_network :: proc() {
-	setup_listener()
+	return
 }

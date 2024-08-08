@@ -8,7 +8,7 @@ import rl "vendor:raylib"
 
 SERVER_ADDRESS :: "localhost:6688"
 CLIENT_SIZE :: 30
-MESSAGE_SEND_SLEEP_DURATION :: time.Millisecond * 100
+UPDATE_INTERVAL :: time.Millisecond * 200
 
 // TODO put all of these into some sort of global
 // game context struct that is passed by reference
@@ -30,7 +30,12 @@ main :: proc() {
 	context.logger = log.create_console_logger(.Debug)
 	rl.SetTraceLogLevel(rl.TraceLogLevel.ERROR)
 
-	setup_network()
+	setup_err := setup_network()
+
+	if setup_err != nil {
+		log.error("Failed to setup network: %s", setup_err)
+		return
+	}
 
 	rl.InitWindow(512, 512, "world")
 	defer rl.CloseWindow()
