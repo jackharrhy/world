@@ -8,7 +8,7 @@ import rl "vendor:raylib"
 
 SERVER_ADDRESS :: "localhost:6688"
 CLIENT_SIZE :: 30
-UPDATE_INTERVAL :: time.Millisecond * 200
+UPDATE_INTERVAL :: time.Second / 64
 
 // TODO put all of these into some sort of global
 // game context struct that is passed by reference

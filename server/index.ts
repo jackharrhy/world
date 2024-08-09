@@ -5,7 +5,7 @@ debugFactory.enable("world:*");
 
 const debug = debugFactory("world:index");
 
-const updateRate = 1000 / 40;
+const updateRate = 1000 / 64;
 
 const spaceSize = 512;
 
